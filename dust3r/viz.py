@@ -8,6 +8,7 @@ import PIL.Image
 import numpy as np
 from scipy.spatial.transform import Rotation
 import torch
+import rerun as rr
 
 from dust3r.utils.geometry import geotrf, get_med_dist_between_poses, depthmap_to_absolute_camera_coordinates
 from dust3r.utils.device import to_numpy
@@ -18,6 +19,8 @@ try:
 except ImportError:
     print('/!\\ module trimesh is not installed, cannot visualize results /!\\')
 
+import pdb
+import trimesh
 
 
 def cat_3d(vecs):
@@ -138,9 +141,9 @@ class SceneViz:
         pts3d = to_numpy(pts3d)
         mask = to_numpy(mask)
         if not isinstance(pts3d, list):
-            pts3d = [pts3d.reshape(-1,3)]
+            pts3d = [pts3d.reshape(-1,3)] # type: ignore
             if mask is not None: 
-                mask = [mask.ravel()]
+                mask = [mask.ravel()] # type: ignore
         if not isinstance(color, (tuple,list)):
             color = [color.reshape(-1,3)]
         if mask is None:
@@ -165,7 +168,7 @@ class SceneViz:
             dist_thr = np.quantile(dist_to_centroid, 0.99)
             valid = (dist_to_centroid < dist_thr)
             # new cleaned pointcloud
-            pct = trimesh.PointCloud(pct.vertices[valid], color=pct.visual.vertex_colors[valid])
+            pct = trimesh.PointCloud(pct.vertices[valid], color=pct.visual.vertex_colors[valid]) # type: ignore
 
         self.scene.add_geometry(pct)
         return self
@@ -175,7 +178,7 @@ class SceneViz:
         if intrinsics is None:
             H, W, THREE = image.shape
             focal = max(H, W)
-            intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]])
+            intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]]) # type: ignore
 
         # compute 3d points
         pts3d, mask2 = depthmap_to_absolute_camera_coordinates(depth, intrinsics, cam2world)
@@ -207,6 +210,149 @@ class SceneViz:
 
     def show(self, point_size=2):
         self.scene.show(line_settings= {'point_size': point_size})
+
+
+class SceneVizRerun:
+    def __init__(self):
+        rr.init("dust3r", spawn=False)
+        rr.connect_grpc()
+
+        self.pts_count = 0
+        self.cams_count = 0
+
+    # def add_rgbd(self, image, depth, intrinsics=None, cam2world=None, zfar=np.inf, mask=None):
+    #     image = img_to_arr(image)
+
+    #     # make up some intrinsics
+    #     if intrinsics is None:
+    #         H, W, THREE = image.shape
+    #         focal = max(H, W)
+    #         intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]])
+
+    #     # compute 3d points
+    #     pts3d = depthmap_to_pts3d(depth, intrinsics, cam2world=cam2world)
+
+    #     return self.add_pointcloud(pts3d, image, mask=(depth<zfar) if mask is None else mask)
+
+    def add_pointcloud(self, pts3d, name='pts', color=(0,0,0), mask=None, denoise=False):
+        pts3d = to_numpy(pts3d)
+        mask = to_numpy(mask)
+        if not isinstance(pts3d, list):
+            pts3d = [pts3d.reshape(-1,3)] # type: ignore
+            if mask is not None: 
+                mask = [mask.ravel()] # type: ignore
+        if not isinstance(color, (tuple,list)):
+            color = [color.reshape(-1,3)]
+        if mask is None:
+            mask = [slice(None)] * len(pts3d)
+
+        # pts = np.concatenate([p[m] for p,m in zip(pts3d,mask)])
+        color = to_numpy(color)
+        color = uint8(color)
+        # pdb.set_trace()
+        for i, (p,m,c) in enumerate(zip(pts3d,mask,color)):
+            # if i == 0:
+            #     rr.log(f'world/pts/{name}_{i}', rr.Points3D(p[m], colors=c[m], radii=0.003))
+            # print("p[m].shape", p[m].shape, 'p', p.shape, 'm', m.shape, 'c', c.shape)
+            rr.log(f"world/imgs/{name}_{i}", rr.Image(c))
+            rr.log(f'world/pts/{name}_{i}', rr.Points3D(p.reshape(-1,3), colors=c.reshape(-1,3), radii=0.03))
+
+        # pts.shape = (N, 3)
+        # pct = trimesh.PointCloud(pts)
+
+        # if isinstance(color, (list, np.ndarray, torch.Tensor)):
+        #     color = to_numpy(color)
+        #     col = np.concatenate([p[m] for p,m in zip(color,mask)])
+        #     # assert col.shape == pts.shape, bb()
+        #     # pct.visual.vertex_colors = uint8(col.reshape(-1,3))
+        #     colors = uint8(col.reshape(-1,3))
+        # else:
+        #     assert len(color) == 3
+        #     # pct.visual.vertex_colors = np.broadcast_to(uint8(color), pts.shape)
+        #     colors = np.broadcast_to(uint8(color), pts.shape)
+        
+
+        # if denoise:
+        #     # remove points which are noisy
+        #     centroid = np.median(pct.vertices, axis=0)
+        #     dist_to_centroid = np.linalg.norm(pct.vertices - centroid, axis=-1)
+        #     dist_thr = np.quantile(dist_to_centroid, 0.99)
+        #     valid = (dist_to_centroid < dist_thr)
+        #     # new cleaned pointcloud
+        #     # pct = trimesh.PointCloud(pct.vertices[valid], color=pct.visual.vertex_colors[valid])
+        #     pts = pts[valid]
+        #     colors = colors[valid]
+
+        # self.scene.add_geometry(pct)
+        # rr.log(f'world/{name}', rr.Points3D(pts, colors=colors, radii=0.003))
+        # return self
+
+    def add_images(self, images, name=None):
+        images = to_numpy(images)
+
+        for i, img in enumerate(images):
+            # img = img_to_arr(img)
+            # map from [-1,1] to [0,1]
+            img = (img + 1.0) / 2.0
+            rr.log(f'world/imgs/{name}{i}', rr.Image(img))
+
+    def add_rgbd(self, image, depth, intrinsics=None, cam2world=None, zfar=np.inf, mask=None):
+        # make up some intrinsics
+        if intrinsics is None:
+            H, W, THREE = image.shape
+            focal = max(H, W)
+            intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]])
+
+        # compute 3d points
+        pts3d, mask2 = depthmap_to_absolute_camera_coordinates(depth, intrinsics, cam2world)
+        mask2 &= (depth<zfar) 
+
+        # combine with provided mask if any
+        if mask is not None:
+            mask2 &= mask
+
+        return self.add_pointcloud(pts3d, image, mask=mask2)
+
+    def add_camera(self, pose_c2w, focal=None, color=(0, 0, 0), image=None, imsize=None, cam_size=0.03):
+        pose_c2w, focal, color, image = to_numpy((pose_c2w, focal, color, image))
+        # pdb.set_trace()
+
+        if isinstance(focal, np.ndarray) and focal.shape == (2):
+            _focal = float(focal[0])
+        elif isinstance(focal, list) and len(focal) == 2:
+            _focal = float(focal[0])
+        else:
+            _focal = float(focal)
+
+        rr.log(f'world/cams/img{self.cams_count}', 
+               rr.Pinhole(
+                        resolution=imsize,
+                        focal_length=_focal,
+                        camera_xyz=rr.ViewCoordinates.RDF, 
+                        image_plane_distance=cam_size, # FIXME LUF -> RDF
+                    ))
+   
+        rr.log(
+                f"world/cams/img{self.cams_count}",
+                rr.Transform3D(translation=pose_c2w[:3,3], mat3x3=pose_c2w[:3,:3]),
+
+            )
+        
+        rr.log(f'world/cams/img{self.cams_count}', rr.Image(image))
+               
+        self.cams_count += 1
+
+
+
+    def add_cameras(self, poses, focals=None, images=None, imsizes=None, colors=None, **kw):
+        get = lambda arr,idx: None if arr is None else arr[idx]
+        for i, pose_c2w in enumerate(poses):
+            self.add_camera(pose_c2w, get(focals,i), image=get(images,i), color=get(colors,i), imsize=get(imsizes,i), **kw)
+        return self
+
+    def show(self, point_size=2):
+        # self.scene.show(line_settings= {'point_size': point_size})
+        pass
 
 
 def show_raw_pointcloud_with_cams(imgs, pts3d, mask, focals, cams2world,
@@ -375,7 +521,7 @@ def segment_sky(image):
     while i < len(order) and cc_sizes[order[i]] > cc_sizes[order[0]] / 2:
         selection.append(1 + order[i])
         i += 1
-    mask3 = np.in1d(labels, selection).reshape(labels.shape)
+    mask3 = np.isin(labels, selection).reshape(labels.shape)
 
     # Apply mask
     return torch.from_numpy(mask3)

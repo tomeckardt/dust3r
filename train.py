@@ -5,7 +5,8 @@
 # --------------------------------------------------------
 # training executable for DUSt3R
 # --------------------------------------------------------
-from dust3r.training import get_args_parser, train
+# from dust3r.training import get_args_parser, train
+from dust3r.mod_training import get_args_parser, train
 
 if __name__ == '__main__':
     args = get_args_parser()

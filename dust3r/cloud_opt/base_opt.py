@@ -16,7 +16,7 @@ import tqdm
 from dust3r.utils.geometry import inv, geotrf
 from dust3r.utils.device import to_numpy
 from dust3r.utils.image import rgb
-from dust3r.viz import SceneViz, segment_sky, auto_cam_size
+from dust3r.viz import SceneVizRerun, segment_sky, auto_cam_size
 from dust3r.optim_factory import adjust_learning_rate_by_lr
 
 from dust3r.cloud_opt.commons import (edge_str, ALL_DISTS, NoGradParamDict, get_imshapes, signed_expm1, signed_log1p,
@@ -295,14 +295,14 @@ class BasePCOptimizer (nn.Module):
         return res
 
     def show(self, show_pw_cams=False, show_pw_pts3d=False, cam_size=None, **kw):
-        viz = SceneViz()
+        viz = SceneVizRerun()
         if self.imgs is None:
             colors = np.random.randint(0, 256, size=(self.n_imgs, 3))
             colors = list(map(tuple, colors.tolist()))
             for n in range(self.n_imgs):
-                viz.add_pointcloud(self.get_pts3d()[n], colors[n], self.get_masks()[n])
+                viz.add_pointcloud(pts3d=self.get_pts3d()[n], name="pts", color=colors[n], mask=self.get_masks()[n])
         else:
-            viz.add_pointcloud(self.get_pts3d(), self.imgs, self.get_masks())
+            viz.add_pointcloud(self.get_pts3d(), "pts", self.imgs, self.get_masks())
             colors = np.random.randint(256, size=(self.n_imgs, 3))
 
         # camera poses

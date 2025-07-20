@@ -11,6 +11,8 @@ from .scannetpp import ScanNetpp  # noqa
 from .staticthings3d import StaticThings3D  # noqa
 from .waymo import Waymo  # noqa
 from .wildrgbd import WildRGBD  # noqa
+from .front3d import Front3DV3
+from .mod_front3d import ModFront3DV3
 
 
 def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=True, pin_mem=True):

@@ -31,7 +31,7 @@ def make_batch_symmetric(batch):
 
 def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, use_amp=False, ret=None):
     view1, view2 = batch
-    ignore_keys = set(['depthmap', 'dataset', 'label', 'instance', 'idx', 'true_shape', 'rng'])
+    ignore_keys = set(['depthmap', 'dataset', 'label', 'instance', 'idx', 'true_shape', 'rng', 'view_label'])
     for view in batch:
         for name in view.keys():  # pseudo_focal
             if name in ignore_keys:
