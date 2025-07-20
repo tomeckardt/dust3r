@@ -76,7 +76,7 @@ if __name__ == '__main__':
     lr = 0.01
     niter = 300
 
-    model_name = "checkpoints/dust3r_demo_224_mod_2/checkpoint-best.pth" # "naver/DUSt3R_ViTLarge_BaseDecoder_224_linear"
+    model_name = "checkpoints/dust3r_demo_224_mod_3/checkpoint-best.pth" # "naver/DUSt3R_ViTLarge_BaseDecoder_224_linear"
     scene_dir = "../../renderings/0a9c667d-033d-448c-b17c-dc55e6d3c386"
     mod_scene_dir = scene_dir + "_modified"
     room_dir = "SecondBedroom-5159/king-sizebed" # "DiningRoom-11628/diningchair"
@@ -107,7 +107,6 @@ if __name__ == '__main__':
     scene = global_aligner(output, device=device, mode=GlobalAlignerMode.PointCloudOptimizer)
     scene.im_poses
     loss = scene.compute_global_alignment(init="mst", niter=niter, schedule=schedule, lr=lr)
-    scene.compute_global_alignment(init="mst")
 
     # retrieve useful values from scene:
     imgs = scene.imgs
